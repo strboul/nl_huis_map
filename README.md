@@ -12,7 +12,7 @@ In this example, the dataset offered from [**cbs.nl**](https://www.cbs.nl/) is u
 
 To create the map, you need the following packages for R :
 
-```
+``` r
 #Loading necessary packages
 unlist(lapply(c("tidyverse", "sp", "RColorBrewer"), 
               require, character.only = TRUE))
@@ -26,14 +26,14 @@ I personally prefer to load packages in this way, which looks more cluttered tha
 
 Data can be found [**here**](http://statline.cbs.nl/StatWeb/publication/?DM=SLNL&PA=81870NED). As said, data preparation gets the 80% of work. Though, our job is not going to be so long! Let’s import the data first:
 
-```
+``` r
 #Houses in the NL, data
 huis <- read.csv("~/Downloads/dataset.csv", header=T, sep=";")
 ```
 
 Now coding the province names from the data, which are actually obtained from the metadata file attached to the same folder of main data document. By the way, the code in this blog post depicts the data from rental column, the value can be changed for analysing different values - if needed.
 
-```
+``` r
 #According to metadata file, from PV20 to PV31 belong to provinces.
 regions <- dplyr::recode(huis$RegioS, 'PV20  '="Groningen", 'PV21  '="Friesland", 'PV22  '="Drenthe", 'PV23  '="Overijssel", 'PV24  '="Flevoland", 'PV25  '="Gelderland", 'PV26  '="Utrecht", 'PV27  '="Noord-Holland", 'PV28  '="Zuid-Holland", 'PV29  '="Zeeland", 'PV30  '="Noord-Brabant", 'PV31  '="Limburg")
 huis <- mutate(huis, id = regions) # We give the name "id" because we will use it later when joining the data frames
@@ -43,7 +43,7 @@ colnames(huis_sub) <- c("value", "id")
 
 Now we choose and assign variables from the data frame. It is vital to extract the rows related with the provinces. A simple for loop will do this work.
 
-```
+``` r
 #Our region list
 region_list <- c("Groningen", "Friesland", "Drenthe", "Overijssel", "Flevoland", "Gelderland", "Utrecht", "Noord-Holland", "Zuid-Holland", "Zeeland", "Noord-Brabant", "Limburg")
 data_list <- list() #Initiate a list to save the df.
@@ -64,7 +64,7 @@ After detecting some symbol situated in the values of rows (from `levels(huisdat
 
 So before that, we transform the '.' (dot) character into numerical value as zero.
 
-```
+``` r
 huisdata$value[huisdata$value=="."] <- 0
 ```
 
@@ -74,28 +74,28 @@ Second, we look our map form. [**GADM**](http://www.gadm.org) (Global Administra
 
 Read `.rds` file downloaded from GADM with `readRDS` function, and transform it into data frames with `fortify` to use in plotting later on.
 
-```
+``` r
 nl01 <- readRDS("~/Downloads/NLD_adm1.rds") #NL map (Level 1) ##GADM version 2.8
 nl01_df <- ggplot2::fortify(nl01, region="NAME_1") # Region names 1 in data frame
 ```
 
 As we have data frame, we cannot learn the levels of the id column by using `levels` function. We use `unique` function extracting unique elements. And, there are 14 regions in total, and only 12 provinces are available. 2 provinces which are "Zeeuwse meren" and "IJsselmeer" are out of our context. Well, there are no built housing there yet, as far as I know!
 
-```
+``` r
 unique(unlist(nl01_df[ ,6])) #6th column "id"
 nl01_map0 <- nl01_df[ !(nl01_df$id) %in% c("Zeeuwse meren", "IJsselmeer"), ]
 ```
 
 Computing the summary of value column with regards to the regions mentioned in the id column. Then, a little attention should be pointed out here. For merging, the data frames should have the same number of rows, and one common name column between these two data frames.
 
-```
+``` r
 huisdata_sum <- aggregate(cbind(value)~id, data=huisdata, FUN=sum)
 nl01_map_merged <- merge(nl01_map0, huisdata_sum, by.y = 'id', all.x = TRUE)
 ```
 
 Find the centroids of provinces, and acquire names and id according to provinces.
 
-```
+``` r
 nl01_map_centroids <- data.frame(long = sp::coordinates(nl01)[, 1], lat = sp::coordinates(nl01)[, 2])
 nl01_map_centroids[, 'ID_1'] <- nl01@data[,'ID_1']
 nl01_map_centroids[, 'NAME_1'] <- nl01@data[,'NAME_1']
@@ -103,7 +103,7 @@ nl01_map_centroids[, 'NAME_1'] <- nl01@data[,'NAME_1']
 
 Here, we don't delete the unwanted rows by numeric order of data frame, as it may be changed in the future and will cost us trouble. We choose `ID_1` property for removing action.
 
-```
+``` r
 nl01_map_centroids <- nl01_map_centroids[ !(nl01_map_centroids$ID_1) %in% c(6,13), ] #Removing the rows of "IJsselmeer" and "Zeeuwse meren"
 ```
 
@@ -111,7 +111,7 @@ nl01_map_centroids <- nl01_map_centroids[ !(nl01_map_centroids$ID_1) %in% c(6,13
 
 `ggplot2` is very convenient to build the graph. Adding continious value to the `fill` is feasible as we used gradient color scales instead of discrete (then, we would need to `cut` it). Following that, the `sourcesign` variable is used for the caption as that the italic font can be emphasized with `expression` function assigned to an independent variable, and called from the `caption` line.
 
-```
+``` r
 sourcesign <- expression(paste("Data: cbs.nl"," & ","Source: ", italic("strboul.github.io"), sep="\n")) #For ggplot's caption
 ggplot(nl01_map_merged, aes(x = long, y = lat, group = group)) + 
 geom_polygon(aes(fill = value)) +
